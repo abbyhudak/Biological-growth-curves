@@ -1,0 +1,67 @@
+######Create dataframe with the maximum size recorded for each individual.  These way we can constrain the curve to those measurements. 
+growth <- read.csv("GrowthData.csv", header=T)
+
+##arrange data to get 
+growth.new <- growth[,c(1,9)] #subset only ID (column 1) and Length (column 9)
+
+##get maximum of each column
+max.function <- function(new) sapply(new, max, na.rm=T)
+Length <- (max.function(new))
+new <- as.data.frame(Length)
+max.K <- tibble::rownames_to_column(new, "ID")
+colnames(max.K) <- c("ID", "Kmax")
+
+######Fit logistic growth curves
+grow_new<-merge(growth, max.K, by = "ID") #combine dataframes
+grow_new<-grow_new[,c(1,4, 9, 12)] #select columns with ID, Age_Week, Length, and Kmax
+
+#split each ID and its age and Length into its own dataframe
+splitted.data <- split(grow_new, f=grow_new$ID)
+
+#define starting parameters 
+y0_start<-0.01
+mumax_start<-0.2
+K_start<-1
+
+#make an empty dataframe with 6 columns to outout your results to as the model runs
+df <- data.frame(matrix(ncol=6, nrow = 0))
+names <- c("ID","y0","mumax","K","TTM", "turnpoint")   #make column names
+colnames(df)<-names                                    #add those names to the dataframe 
+
+# a loop that will run each individual 
+for(i in names(splitted.data)) { #for every element (ID) in splitted data, run this model
+	tmp<-splitted.data[[i]]      #make a temporary dataframe for every iteration (every i)
+	x = tmp$Age_Week             #get all time (x) values for each indv
+	y = tmp$Length               #get all length (y) values for each indv
+	Kmax = tmp[[4]][1]           #get the max length value (max value is repeated in the df so thats why you have to grab just one value)
+
+#fit logistic growth curve using nonlinear least squares (nls)
+    m <- nls(y~K*y0*exp(mumax*x)/(K+y0*(exp(mumax*x)-1)),        #the model equation
+         start=list(y0=y0_start, mumax=mumax_start, K=K_start),  #starting parameters
+         algorithm="port", lower=list(y0=0, mumax=0, K=0),       #port algorithm allows you to put upper and lower limits
+         upper=list(y0=1, mumax=0.7, K=Kmax))                    #upper limits, includes Kmax so you constrain model to your measurements
+
+#extract parameters from model (m)
+p<-coef(m)
+y0<-p["y0"]
+mumax<-p["mumax"]
+K<-p["K"]
+
+#the turnpoint of the curve, "inflection point", is the maximum of the first derivative of the curve 
+deriv1 <- function(x, y0, mumax, K) {
+    (K*mumax*y0*(K - y0)*exp(mumax * x))/((K + y0 * (exp(mumax * x) - 1))^2)
+    }
+	
+turnpoint <- optimize(deriv1, range(x), y0=y0, mumax=mumax, K=K, maximum=TRUE)$maximum
+
+#TTM: time to maturity = age at which an indivudal reached asymptotic size, K. Calculated when it's within 95% of the measured K
+TTM <- (log((0.95 * (y0 - K))/((0.95 - 1) * y0)))/mumax
+
+#add y0, mumax, K, TTM, turnpoint to a df
+df[i, ] = c(i,y0,mumax,K,TTM,turnpoint)
+
+}   #end of loop
+
+
+
+
