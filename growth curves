@@ -1,12 +1,12 @@
-######Create dataframe with the maximum size recorded for each individual.  These way we can constrain the curve to those measurements. 
-growth <- read.csv("GrowthData.csv", header=T)
+######Create dataframe with the maximum size recorded for each individual.  This way we can constrain the curve to those measurements. 
+growth <- read.csv("GrowthData.csv", header=T)   #read in data with growth measurements
 
 ##arrange data to get 
 growth.new <- growth[,c(1,9)] #subset only ID (column 1) and Length (column 9)
 
 ##get maximum of each column
-max.function <- function(new) sapply(new, max, na.rm=T)
-Length <- (max.function(new))
+max.function <- function(growth.new) sapply(growth.new, max, na.rm=T)
+Length <- (max.function(growth.new))
 new <- as.data.frame(Length)
 max.K <- tibble::rownames_to_column(new, "ID")
 colnames(max.K) <- c("ID", "Kmax")
@@ -19,9 +19,9 @@ grow_new<-grow_new[,c(1,4, 9, 12)] #select columns with ID, Age_Week, Length, an
 splitted.data <- split(grow_new, f=grow_new$ID)
 
 #define starting parameters 
-y0_start<-0.01
-mumax_start<-0.2
-K_start<-1
+y0_start<-0.01      #y0: starting point of curve
+mumax_start<-0.2    #mumax: intrinsic growth rate. Describes how qucikly curve reaches its asymptote 
+K_start<-1          #K: asymptote of curve
 
 #make an empty dataframe with 6 columns to outout your results to as the model runs
 df <- data.frame(matrix(ncol=6, nrow = 0))
@@ -43,9 +43,9 @@ for(i in names(splitted.data)) { #for every element (ID) in splitted data, run t
 
 #extract parameters from model (m)
 p<-coef(m)
-y0<-p["y0"]
-mumax<-p["mumax"]
-K<-p["K"]
+y0<-p["y0"]        
+mumax<-p["mumax"]   
+K<-p["K"]         
 
 #the turnpoint of the curve, "inflection point", is the maximum of the first derivative of the curve 
 deriv1 <- function(x, y0, mumax, K) {
